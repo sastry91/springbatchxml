@@ -1,0 +1,74 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:batch="http://www.springframework.org/schema/batch" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch-3.0.xsd
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd">
+
+    <import resource="classpath:context-datasource.xml"/>
+
+    <!-- JobRepository and JobLauncher are configuration/setup classes -->
+    <bean id="jobRepository" class="org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean" />
+
+    <bean id="jobLauncher"   class="org.springframework.batch.core.launch.support.SimpleJobLauncher">
+        <property name="jobRepository" ref="jobRepository" />
+    </bean>
+    <!-- ItemReader which reads data from XML file -->
+    <bean id="textItemReader" class="org.springframework.batch.item.file.FlatFileItemReader">
+
+        <property name="resource" value="classpath:member.txt" />
+
+        <property name="lineMapper">
+
+            <bean class="org.springframework.batch.item.file.mapping.DefaultLineMapper">
+
+                <property name="fieldSetMapper">
+                    <!-- Mapper which maps each individual items in a record to properties in POJO -->
+                    <bean class="com.sastry.spring.batch.MemberFieldSetMapper" />
+                </property>
+
+                <property name="lineTokenizer">
+                    <!-- A tokenizer class to be used when items in input record are separated by specific characters -->
+                    <bean class="org.springframework.batch.item.file.transform.DelimitedLineTokenizer">
+                        <property name="delimiter" value="|" />
+                    </bean>
+                </property>
+
+            </bean>
+
+        </property>
+
+    </bean>
+
+    <!-- ItemWriter which writes data to database -->
+    <bean id="databaseItemWriter" class="org.springframework.batch.item.database.JdbcBatchItemWriter">
+        <property name="dataSource" ref="dataSource" />
+        <property name="sql">
+            <value>
+                <![CDATA[
+                    insert into member(firstname,lastname)
+                    values (?,?)
+                ]]>
+            </value>
+        </property>
+        <property name="ItemPreparedStatementSetter">
+            <bean class="com.sastry.spring.batch.MemberWriterPreparedStatement" />
+        </property>
+
+
+    </bean>
+
+
+
+    <!-- Step will need a transaction manager -->
+    <bean id="transactionManager" class="org.springframework.batch.support.transaction.ResourcelessTransactionManager" />
+
+    <!-- Actual Job -->
+    <batch:job id="SimpleSpringBatchJob">
+        <batch:step id="step1">
+            <batch:tasklet transaction-manager="transactionManager">
+                <batch:chunk reader="textItemReader" writer="databaseItemWriter"
+                            commit-interval="10" />
+            </batch:tasklet>
+        </batch:step>
+    </batch:job>
+
+</beans>
